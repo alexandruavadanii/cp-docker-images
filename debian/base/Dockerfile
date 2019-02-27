@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM debian:jessie
+FROM arm64v8/debian:jessie
 
 ARG COMMIT_ID=unknown
 LABEL io.confluent.docker.git.id=$COMMIT_ID
@@ -56,13 +56,17 @@ ENV CONFLUENT_VERSION="$CONFLUENT_MAJOR_VERSION.$CONFLUENT_MINOR_VERSION.$CONFLU
 ENV CONFLUENT_DEB_VERSION="1"
 
 # Zulu
-ENV ZULU_OPENJDK_VERSION="8=8.17.0.3"
+ENV ZULU_OPENJDK_VERSION="8.33.0.135-jdk1.8.0_192"
+ENV ZULU_OPENJDK_PLATFORM="linux_aarch64"
+ENV JAVA_HOME=/usr/lib/jvm/zulu${ZULU_OPENJDK_VERSION}-${ZULU_OPENJDK_PLATFORM}
 
 # This affects how strings in Java class files are interpreted.  We want UTF-8 and this is the only locale in the
 # base image that supports it
 ENV LANG="C.UTF-8"
 
+# NOTE(Alex): There's no security repo comp in Debian Jessie for AArch64
 RUN echo "===> Updating debian ....." \
+    && sed -i '/security/s/^/#/g' /etc/apt/sources.list \
     && apt-get -qq update \
     \
     && echo "===> Installing curl wget netcat python...." \
@@ -78,11 +82,14 @@ RUN echo "===> Updating debian ....." \
     && pip install --no-cache-dir --upgrade pip==${PYTHON_PIP_VERSION} \
     && pip install --no-cache-dir git+https://github.com/confluentinc/confluent-docker-utils@v0.0.20 \
     && apt remove --purge -y git \
-    && echo "Installing Zulu OpenJDK ${ZULU_OPENJDK_VERSION}" \
-    && apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 0x219BD9C9 \
-    && echo "deb http://repos.azulsystems.com/debian stable  main" >> /etc/apt/sources.list.d/zulu.list \
-    && apt-get -qq update \
-    && apt-get -y install zulu-${ZULU_OPENJDK_VERSION} \
+    && echo "Installing Zulu OpenJDK ${ZULU_OPENJDK_VERSION} for ${ZULU_OPENJDK_PLATFORM}" \
+    && mkdir -p /usr/lib/jvm \
+    && wget https://cdn.azul.com/zulu-embedded/bin/zulu${ZULU_OPENJDK_VERSION}-${ZULU_OPENJDK_PLATFORM}.tar.gz -O /tmp/zulu.tar.gz \
+    && tar xzvf /tmp/zulu.tar.gz -C /usr/lib/jvm \
+    && rm -rf /tmp/zulu.tar.gz \
+    && for x in /usr/lib/jvm/zulu${ZULU_OPENJDK_VERSION}-${ZULU_OPENJDK_PLATFORM}/bin/*; do \
+        update-alternatives --install /usr/bin/$(basename $x) $(basename $x) $x 100; \
+    done \
     && echo "===> Installing Kerberos Patch ..." \
     && DEBIAN_FRONTEND=noninteractive apt-get -y install krb5-user \
     && rm -rf /var/lib/apt/lists/* \
