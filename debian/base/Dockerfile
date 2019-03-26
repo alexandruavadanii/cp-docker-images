@@ -66,7 +66,8 @@ ENV LANG="C.UTF-8"
 
 # NOTE(Alex): There's no security repo comp in Debian Jessie for AArch64
 RUN echo "===> Updating debian ....." \
-    && sed -i '/security/s/^/#/g' /etc/apt/sources.list \
+    && echo 'Acquire::Check-Valid-Until "0";' > /etc/apt/apt.conf.d/10no--check-valid-until \
+    && sed -i -e '/security/s/^/#/g' -e 's|deb.debian.org/debian|snapshot.debian.org/archive/debian/20190301T035241Z|g' /etc/apt/sources.list \
     && apt-get -qq update \
     \
     && echo "===> Installing curl wget netcat python...." \
